@@ -1,4 +1,4 @@
-export default function JobCard({ job, onApply }) {
+export default function JobCard({ job, onApply, onPrep }) {
   return (
     <div className="group relative bg-slate-900 border border-slate-800 p-6 rounded-2xl transition-all duration-300 hover:border-indigo-500/50 hover:shadow-2xl hover:shadow-indigo-500/10">
 
@@ -44,14 +44,25 @@ export default function JobCard({ job, onApply }) {
       <div className="flex items-center justify-between pt-4 border-t border-slate-800">
         <span className="text-xs text-slate-500 font-light">Posted 2 days ago</span>
 
-        {onApply && (
-          <button
-            onClick={() => onApply(job._id)}
-            className="px-6 py-2 bg-white text-slate-950 hover:bg-indigo-500 hover:text-white font-bold rounded-lg transition-all active:scale-95 shadow-lg shadow-white/5"
-          >
-            Apply Now
-          </button>
-        )}
+        <div className="flex gap-2">
+          {onPrep && (
+            <button
+              onClick={() => onPrep(job._id)}
+              className="px-4 py-2 bg-indigo-900/30 text-indigo-400 hover:bg-indigo-600 hover:text-white font-bold rounded-lg transition-all border border-indigo-500/30"
+              title="Get personalized interview prep"
+            >
+              🤖 AI Prep
+            </button>
+          )}
+          {onApply && (
+            <button
+              onClick={() => onApply(job._id)}
+              className="px-6 py-2 bg-white text-slate-950 hover:bg-indigo-500 hover:text-white font-bold rounded-lg transition-all active:scale-95 shadow-lg shadow-white/5"
+            >
+              Apply Now
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

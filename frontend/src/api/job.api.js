@@ -26,3 +26,9 @@ export const getCompanyJobs = (query) =>
 
 export const deleteJob = (jobId) =>
   api.delete(`/jobs/${jobId}`);
+
+export const searchCandidates = (query) =>
+  api.get(`/company/search-candidates?q=${query}`);
+
+export const generateInterviewPrep = (jobId, userId) =>
+  api.post(`/jobs/${jobId}/prep`, { userId });

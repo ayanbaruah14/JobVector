@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { recommendJobs, applyJob } from "../api/job.api";
+import { recommendJobs, applyJob, generateInterviewPrep } from "../api/job.api";
 import JobCard from "../components/JobCard";
 import Navbar from "../components/Navbar";
 import AnimatedPopup from "../components/AnimatedPopup";
@@ -8,6 +8,8 @@ export default function RecommendedJobs() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [popup, setPopup] = useState(null); 
+  const [prepData, setPrepData] = useState(null);
+  const [isPrepping, setIsPrepping] = useState(false);
   const userId = localStorage.getItem("userId");
 
   useEffect(() => {
@@ -66,6 +68,20 @@ export default function RecommendedJobs() {
 
     
     setJobs((prevJobs) => prevJobs.filter(job => failedIds.includes(job._id)));
+  };
+
+  const handlePrep = async (jobId) => {
+    setIsPrepping(true);
+    setPrepData(null);
+    try {
+      const res = await generateInterviewPrep(jobId, userId);
+      setPrepData(res.data.prep);
+    } catch (err) {
+      console.error("Prep error:", err);
+      setPopup({ message: "Failed to generate interview prep.", type: "error" });
+    } finally {
+      setIsPrepping(false);
+    }
   };
 
   return (
@@ -135,6 +151,7 @@ export default function RecommendedJobs() {
                   <JobCard
                     job={job}
                     onApply={handleApply}
+                    onPrep={handlePrep}
                   />
                 </div>
               ))}
@@ -157,6 +174,51 @@ export default function RecommendedJobs() {
           )}
         </div>
       </div>
+
+      {/* AI Prep Modal */}
+      {(isPrepping || prepData) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-indigo-500/30 rounded-3xl p-8 max-w-2xl w-full relative shadow-2xl overflow-y-auto max-h-[90vh]">
+            <button 
+              onClick={() => { setIsPrepping(false); setPrepData(null); }}
+              className="absolute top-4 right-4 text-slate-500 hover:text-white"
+            >
+              ✕
+            </button>
+            
+            {isPrepping ? (
+              <div className="text-center py-12">
+                <div className="text-6xl animate-bounce mb-4">🤖</div>
+                <h3 className="text-2xl font-bold text-white mb-2">Analyzing your profile...</h3>
+                <p className="text-indigo-400">Generating hyper-personalized interview prep...</p>
+              </div>
+            ) : prepData ? (
+              <div>
+                <h3 className="text-3xl font-extrabold text-white mb-6 flex items-center gap-3">
+                  <span>🤖</span> AI Interview Prep
+                </h3>
+                
+                <div className="bg-indigo-950/50 border border-indigo-500/20 p-6 rounded-2xl mb-6">
+                  <h4 className="text-indigo-400 font-bold mb-2 uppercase tracking-wider text-sm">Action Plan & Improvements</h4>
+                  <p className="text-slate-200">{prepData.improvementPlan}</p>
+                </div>
+
+                <h4 className="text-xl font-bold text-white mb-4">Crucial Interview Topics</h4>
+                <div className="space-y-4">
+                  {(prepData.interviewTopics || []).map((t, i) => (
+                    <div key={i} className="bg-slate-950 border border-slate-800 p-5 rounded-2xl">
+                      <p className="text-white font-medium mb-3"><span className="text-indigo-500 mr-2">#{i+1}</span> {t.topic}</p>
+                      <div className="bg-slate-900 px-4 py-3 rounded-xl border border-slate-800/50">
+                        <p className="text-sm text-emerald-400"><span className="font-bold">💡 Why review this:</span> {t.details}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
     </>
   );
 }

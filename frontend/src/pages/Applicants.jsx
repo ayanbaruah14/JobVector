@@ -7,6 +7,7 @@ export default function Applicants() {
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedResume, setSelectedResume] = useState(null);
 
   useEffect(() => {
     getApplicants(jobId)
@@ -18,8 +19,8 @@ export default function Applicants() {
   }, [jobId]);
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 md:p-12 font-sans text-slate-200">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-slate-950 p-6 md:p-12 font-sans text-slate-200 flex">
+      <div className={`transition-all duration-300 ${selectedResume ? 'w-1/2 pr-6' : 'max-w-6xl w-full mx-auto'}`}>
 
 
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
@@ -50,53 +51,59 @@ export default function Applicants() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-950/50 border-b border-slate-800 text-slate-400">
-                  <th className="px-8 py-5 text-xs uppercase tracking-wider font-bold">Candidate</th>
-                  <th className="px-8 py-5 text-xs uppercase tracking-wider font-bold">Skills & Experience</th>
-                  <th className="px-8 py-5 text-xs uppercase tracking-wider font-bold">Status</th>
-                  <th className="px-8 py-5 text-right text-xs uppercase tracking-wider font-bold">Action</th>
+                  <th className="px-6 py-5 text-xs uppercase tracking-wider font-bold">Rank</th>
+                  <th className="px-6 py-5 text-xs uppercase tracking-wider font-bold">Candidate</th>
+                  <th className="px-6 py-5 text-xs uppercase tracking-wider font-bold w-1/2">AI Evaluation</th>
+                  <th className="px-6 py-5 text-right text-xs uppercase tracking-wider font-bold">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/50">
                 {users.map((u) => (
                   <tr key={u._id} className="hover:bg-indigo-500/5 transition-all duration-200 group">
-                    <td className="px-8 py-6">
+                    <td className="px-6 py-6 text-center">
+                      <div className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500/20 text-indigo-400 font-bold border border-indigo-500/30">
+                        #{u.finalRank || '-'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-6">
                       <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold shadow-lg shadow-indigo-500/20">
+                        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20 shrink-0">
                           {u.name.charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                          <div className="text-white font-bold text-lg">{u.name}</div>
-                          <div className="text-slate-500 text-sm flex items-center gap-1">
-                            ✉️ {u.email}
+                        <div className="overflow-hidden">
+                          <div className="text-white font-bold truncate">{u.name}</div>
+                          <div className="text-slate-500 text-xs truncate">
+                            {u.experience ? `${u.experience} yrs exp.` : 'Fresher'}
                           </div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-8 py-6">
-                      <div className="space-y-1">
+                    <td className="px-6 py-6">
+                      <div className="space-y-2">
                         <div className="flex flex-wrap gap-1">
-                          {u.skills && u.skills.slice(0, 3).map((skill, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-slate-800 text-slate-300 text-xs rounded border border-slate-700">{skill}</span>
+                          {u.skills && u.skills.slice(0, 4).map((skill, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-slate-800 text-slate-300 text-[10px] uppercase font-bold rounded border border-slate-700">{skill}</span>
                           ))}
-                          {u.skills && u.skills.length > 3 && (
-                            <span className="px-2 py-0.5 text-slate-500 text-xs">+ {u.skills.length - 3} more</span>
-                          )}
                         </div>
-                        <div className="text-slate-400 text-sm font-medium">
-                          {u.experience ? `${u.experience} years exp.` : 'Fresher'}
-                        </div>
+                        {u.matchReasoning && (
+                          <div className="text-sm text-indigo-300 bg-indigo-500/10 p-2 rounded-lg border border-indigo-500/20 italic">
+                            "{u.matchReasoning}"
+                          </div>
+                        )}
                       </div>
                     </td>
-                    <td className="px-8 py-6">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 text-amber-400 text-xs font-bold rounded-full border border-amber-500/20 uppercase tracking-wide">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-                        Pending Review
-                      </span>
-                    </td>
-                    <td className="px-8 py-6 text-right">
+                    <td className="px-6 py-6 text-right space-y-2">
+                      {u.resumeUrl && (
+                        <button
+                          onClick={() => setSelectedResume(selectedResume === u.resumeUrl ? null : u.resumeUrl)}
+                          className={`w-full px-3 py-1.5 text-xs font-bold rounded-lg transition-all border shadow-sm active:scale-95 ${selectedResume === u.resumeUrl ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-700 text-indigo-300 hover:bg-slate-700 hover:text-white'}`}
+                        >
+                          {selectedResume === u.resumeUrl ? 'Close Resume' : 'View Resume'}
+                        </button>
+                      )}
                       <button
                         onClick={() => navigate(`/applicant/${u._id}`)}
-                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white text-sm font-bold rounded-xl transition-all border border-slate-700 hover:border-slate-600 shadow-sm active:scale-95"
+                        className="w-full px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold rounded-lg transition-all border border-slate-700 shadow-sm active:scale-95"
                       >
                         View Profile
                       </button>
@@ -121,6 +128,26 @@ export default function Applicants() {
           </div>
         )}
       </div>
+      
+      {/* Resume Viewer Side Panel */}
+      {selectedResume && (
+        <div className="w-1/2 bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+          <div className="bg-slate-800/50 p-4 border-b border-slate-700 flex justify-between items-center">
+            <h3 className="text-lg font-bold text-white">Resume Viewer</h3>
+            <button 
+              onClick={() => setSelectedResume(null)}
+              className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors"
+            >
+              ✕ Close
+            </button>
+          </div>
+          <iframe 
+            src={selectedResume} 
+            className="w-full flex-1 bg-white"
+            title="Candidate Resume"
+          />
+        </div>
+      )}
     </div>
   );
 }

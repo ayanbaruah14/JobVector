@@ -9,7 +9,7 @@ export default function AddJob() {
   const [form, setForm] = useState({
     title: "", company: "", requiredSkills: "",
     minExperience: "", location: "", salary: "",
-    jobType: "", description: ""
+    jobType: "", description: "", preferredCandidates: ""
   });
 
   const handleChange = (e) =>
@@ -131,6 +131,17 @@ export default function AddJob() {
                 className={`${inputStyle} resize-none`}
                 onChange={handleChange}
                 required
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className={labelStyle}>Describe what kind of candidates you prefer</label>
+              <textarea
+                name="preferredCandidates"
+                rows="3"
+                placeholder="e.g. Someone who has built scalable APIs in Node.js, prefers startup environments, and has strong system design skills..."
+                className={`${inputStyle} resize-none`}
+                onChange={handleChange}
               />
             </div>
           </div>

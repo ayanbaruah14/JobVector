@@ -1,64 +1,80 @@
 import Job, { type IJob } from "../models/job.model.js";
 import { type IUser } from "../models/user.model.js";
-
-
-interface JobWithScore extends IJob {
-    score: number;
-}
+import { PineconeService } from "./pinecone.service.js";
+import { AIService } from "./ai.service.js";
 
 export const findMatches = async (user: IUser): Promise<IJob[]> => {
-    const allJobs = await Job.find({}).lean();
+    // 1. If user doesn't have an embedding, fallback to basic MongoDB query
+    if (!user.embedding || user.embedding.length === 0) {
+        console.warn(`User ${user._id} has no embedding. Falling back to basic fetch.`);
+        const fallbackJobs = await Job.find({ 
+            _id: { $nin: user.appliedJobs }
+        }).limit(10);
+        return fallbackJobs;
+    }
 
-    const scoredJobs = allJobs.map((job) => {
-        let score = 0;
+    // 2. Fetch all open jobs they haven't applied to yet
+    const jobs = await Job.find({ _id: { $nin: user.appliedJobs } });
+    if (jobs.length === 0) return [];
 
-        const userSkills = user.skills || [];
-        const skillOverlap = job.requiredSkills.filter((skill) =>
-            userSkills.map(s => s.toLowerCase()).includes(skill.toLowerCase())
-        ).length;
+    let rankedJobs: any[] = jobs.map(j => j.toObject());
 
-        const skillMatchRatio = job.requiredSkills.length > 0 ? skillOverlap / job.requiredSkills.length : 0;
-        score += skillMatchRatio * 30;
-
-        if ((user.experience || 0) >= job.minExperience) {
-            score += 20;
-        }
-
-        const roleMatch = user.preferredRoles.some((role) =>
-            job.title.toLowerCase().includes(role.toLowerCase())
-        );
-        if (roleMatch) {
-            score += 15;
-        }
-
-        const locationMatch = user.preferredLocations.some((loc) =>
-            job.location.toLowerCase().includes(loc.toLowerCase())
-        );
-        if (locationMatch) {
-            score += 10;
-        }
-
-        if (user.expectedSalary && job.salary) {
-            if (job.salary >= user.expectedSalary) {
-                score += 15;
+    // 3. Keyword Search Score
+    const userSkillsLower = (user.skills || []).map((s: string) => s.toLowerCase().trim());
+    rankedJobs = rankedJobs.map(job => {
+        let matchedSkills = 0;
+        const jobSkillsLower = (job.requiredSkills || []).map((s: string) => s.toLowerCase().trim());
+        
+        jobSkillsLower.forEach((reqSkill: string) => {
+            if (userSkillsLower.some((userSkill: string) => userSkill.includes(reqSkill) || reqSkill.includes(userSkill))) {
+                matchedSkills++;
             }
-        }
-
-        const typeMatch = user.preferredJobTypes.some((type) =>
-            job.jobType.toLowerCase() === type.toLowerCase()
-        );
-        if (typeMatch) {
-            score += 10;
-        }
-
-
-        return { ...job, score };
+        });
+        const keywordScore = jobSkillsLower.length > 0 ? (matchedSkills / jobSkillsLower.length) : 0;
+        return { ...job, keywordScore };
     });
 
-    const notAppliedJobs = scoredJobs.filter(
-        (job) => !user.appliedJobs.includes(job._id.toString())
-    );
+    rankedJobs.sort((a, b) => b.keywordScore - a.keywordScore);
+    rankedJobs.forEach((job, index) => { job.keywordRank = index + 1; });
 
-    notAppliedJobs.sort((a, b) => b.score - a.score);
-    return notAppliedJobs.slice(0, 10) as unknown as IJob[];
+    // 4. Vector Search Score
+    const calculateCosineSimilarity = (vecA: number[], vecB: number[]) => {
+        if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
+        let dotProduct = 0, normA = 0, normB = 0;
+        for (let i = 0; i < vecA.length; i++) {
+            const vA = vecA[i] || 0;
+            const vB = vecB[i] || 0;
+            dotProduct += vA * vB;
+            normA += vA * vA;
+            normB += vB * vB;
+        }
+        if (normA === 0 || normB === 0) return 0;
+        return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    };
+
+    rankedJobs = rankedJobs.map(job => {
+        const vectorScore = (job.embedding && job.embedding.length > 0) ? calculateCosineSimilarity(user.embedding!, job.embedding) : 0;
+        return { ...job, vectorScore };
+    });
+
+    rankedJobs.sort((a, b) => b.vectorScore - a.vectorScore);
+    rankedJobs.forEach((job, index) => { job.vectorRank = index + 1; });
+
+    // 5. Hybrid RRF Score
+    const k = 60;
+    rankedJobs.forEach(job => {
+        job.hybridRrfScore = (1 / (k + job.keywordRank)) + (1 / (k + job.vectorRank));
+    });
+
+    rankedJobs.sort((a, b) => b.hybridRrfScore - a.hybridRrfScore);
+    
+    // 6. Select Top 10 for LLM Reranking
+    const top10Jobs = rankedJobs.slice(0, 10);
+
+    console.log(`[Hybrid RAG] Re-ranking Top ${top10Jobs.length} jobs with Gemini...`);
+    const reRankedJobs = await AIService.evaluateJobMatch(user, top10Jobs);
+
+    // Return the final ranked jobs (LLM handles final sort and slice in the service, but let's ensure it here just in case)
+    reRankedJobs.sort((a, b) => b.score - a.score);
+    return reRankedJobs.slice(0, 10);
 };

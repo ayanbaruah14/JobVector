@@ -60,6 +60,9 @@ export default function Navbar() {
             <Link to="/applications" className={linkStyle("/applications")}>
               Applications
             </Link>
+            <Link to="/profile" className={linkStyle("/profile")}>
+              Profile
+            </Link>
 
             <div className="h-6 w-px bg-slate-800 mx-2 hidden sm:block"></div>
 

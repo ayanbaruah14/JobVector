@@ -1,8 +1,14 @@
 import { Request, Response } from "express";
 import User, { type IUser } from "../models/user.model.js";
-import { TextExtractionService } from "../services/text-extraction.service.js";
 import { LinkExtractionService } from "../services/link-extraction.service.js";
-import { OpenAIService } from "../services/openai.service.js";
+import { AIService } from "../services/ai.service.js";
+import { PineconeService } from "../services/pinecone.service.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 
 export const createUser = async (req: Request, res: Response) => {
@@ -44,11 +50,45 @@ export const updateUser = async (req: Request, res: Response) => {
             return res.status(400).json({ message: "UserId is required for update" });
         }
 
-        const updatedUser = await User.findOneAndUpdate({ _id: userId }, { ...req.body, isProfileComplete: true }, { new: true });
+        const updateData = { ...req.body, isProfileComplete: true };
+        delete updateData.email;
+        delete updateData.password;
+        delete updateData._id;
+        delete updateData.userId;
+
+        // Generate updated professional summary based on new profile data
+        const oldUser = await User.findById(userId);
+        const combinedData = { ...(oldUser?.toObject() || {}), ...updateData };
+        const newSummary = await AIService.generateCandidateSummary(combinedData);
+        if (newSummary) {
+            updateData.professionalSummary = newSummary;
+        }
+
+        const updatedUser = await User.findOneAndUpdate({ _id: userId }, updateData, { new: true });
 
         if (!updatedUser) {
             return res.status(404).json({ message: "User not found" });
         }
+
+        // --- RAG INTEGRATION: Generate Embedding and Save to Pinecone ---
+        try {
+            let embeddingText = `Skills: ${(updatedUser.skills || []).join(", ")}. Experience: ${updatedUser.experience} years. Roles: ${(updatedUser.preferredRoles || []).join(", ")}.`;
+            if (updatedUser.professionalSummary) {
+                embeddingText += `\nProfessional Summary: ${updatedUser.professionalSummary}`;
+            }
+            const embedding = await AIService.generateEmbedding(embeddingText);
+            
+            if (embedding && embedding.length > 0) {
+                updatedUser.embedding = embedding;
+                await updatedUser.save();
+                
+                // Save to Pinecone
+                await PineconeService.upsertVector(updatedUser._id.toString(), embedding);
+            }
+        } catch (embeddingError) {
+            console.error("Error generating or saving embedding on profile update:", embeddingError);
+        }
+        // ---------------------------------------------------------------
 
         res.status(200).json({ message: "User updated successfully", user: updatedUser });
 
@@ -97,49 +137,66 @@ export const completeUserProfile = async (
     try {
         console.log("completeUserProfile called");
 
-        
+
         const { userId, ...manualData } = req.body;
         if (!userId) {
             return res.status(400).json({ message: "UserId is required" });
         }
 
         const files = req.files as Express.Multer.File[];
-        
+
         let links: string[] = [];
         try {
             if (manualData.links) {
                 links = JSON.parse(manualData.links);
             } else if (manualData.projectLinks) {
-                
+
                 links = Array.isArray(manualData.projectLinks) ? manualData.projectLinks : manualData.projectLinks.split(',').map((l: string) => l.trim());
             }
         } catch (e) {
             console.log("Error parsing links:", e);
         }
 
-        let extractedText = "";
+        let resumeParts: any[] = [];
+        let resumeUrl = "";
 
-        
         if (files && files.length > 0) {
             for (const file of files) {
                 if (file.mimetype === "application/pdf") {
                     try {
-                        const text = await TextExtractionService.extractTextFromPDF(file.buffer);
-                        extractedText += `\n--- RESUME (${file.originalname}) ---\n${text}`;
+                        resumeParts.push({
+                            inlineData: {
+                                data: file.buffer.toString("base64"),
+                                mimeType: "application/pdf"
+                            }
+                        });
+                        
+                        // Save the file locally
+                        const resumesDir = path.join(__dirname, "../../uploads/resumes");
+                        if (!fs.existsSync(resumesDir)) {
+                            fs.mkdirSync(resumesDir, { recursive: true });
+                        }
+                        const uniqueFilename = `${userId}-${Date.now()}.pdf`;
+                        const filePath = path.join(resumesDir, uniqueFilename);
+                        fs.writeFileSync(filePath, file.buffer);
+                        
+                        // Set the resumeUrl (matching the backend port 5002)
+                        resumeUrl = `http://localhost:5002/uploads/resumes/${uniqueFilename}`;
+                        
                     } catch (e: any) {
-                        console.error(`Failed to parse PDF ${file.originalname}:`, e);
+                        console.error(`Failed to process PDF ${file.originalname}:`, e);
                     }
                 }
             }
         }
 
-        
+
         if (links && links.length > 0) {
             for (const link of links) {
                 if (typeof link === "string" && link.startsWith("http")) {
                     try {
                         const text = await LinkExtractionService.extractTextFromLink(link);
-                        extractedText += `\n--- LINK: ${link} ---\n${text}`;
+                        resumeParts.push(`\n--- LINK: ${link} ---\n${text}`);
                     } catch (e: any) {
                         console.error(`Failed to parse link ${link}:`, e);
                     }
@@ -147,27 +204,27 @@ export const completeUserProfile = async (
             }
         }
 
-        
+
         let aiData: any = {};
-        if (extractedText.trim()) {
-            console.log("Sending profiling text to OpenAI...", extractedText.length, "chars");
+        if (resumeParts.length > 0) {
+            console.log("Sending documents to OpenAI...", resumeParts.length, "parts");
             try {
-                aiData = await OpenAIService.parseResume(extractedText);
+                aiData = await AIService.parseResume(resumeParts);
                 console.log("AI Data Recieved:", Object.keys(aiData));
             } catch (error) {
                 console.error("OpenAI Error:", error);
             }
         }
 
-        
-        
+
+
         const cleanManualData: any = {};
         Object.keys(manualData).forEach(key => {
             if (manualData[key] !== undefined && manualData[key] !== "" && manualData[key] !== "null") {
-                
+
                 if (!isNaN(Number(manualData[key])) && key !== 'phoneNumber' && key !== 'password') {
                     cleanManualData[key] = Number(manualData[key]);
-                } else if (typeof manualData[key] === 'string' && (manualData[key].includes(',') || key.includes('Skills') || key.includes('Roles'))) {
+                } else if (typeof manualData[key] === 'string' && ['skills', 'preferredRoles', 'preferredLocations', 'preferredJobTypes', 'projectLinks'].includes(key)) {
                     cleanManualData[key] = manualData[key].split(',').map((s: string) => s.trim());
                 } else {
                     cleanManualData[key] = manualData[key];
@@ -175,20 +232,59 @@ export const completeUserProfile = async (
             }
         });
 
-        
-        const finalData = { ...aiData, ...cleanManualData, isProfileComplete: true };
+        const finalData: any = { ...cleanManualData, ...aiData, isProfileComplete: true };
+        if (resumeUrl) {
+            finalData.resumeUrl = resumeUrl;
+        }
 
+        delete finalData.email;
+        delete finalData.password;
+        delete finalData._id;
+        delete finalData.userId;
         
+        const oldUser = await User.findById(userId);
+        
+        // If we didn't just generate a new summary from a resume, unconditionally generate one from the updated manual profile data
+        if (!aiData.professionalSummary) {
+            const combinedData = { ...(oldUser?.toObject() || {}), ...finalData };
+            const newSummary = await AIService.generateCandidateSummary(combinedData);
+            if (newSummary) {
+                finalData.professionalSummary = newSummary;
+            }
+        }
+
         const updatedUser = await User.findByIdAndUpdate(userId, finalData, { new: true });
 
         if (!updatedUser) {
             return res.status(404).json({ message: "User not found" });
         }
 
+        // --- RAG INTEGRATION: Generate Embedding and Save to Pinecone ---
+        try {
+            let embeddingText = `Skills: ${(updatedUser.skills || []).join(", ")}. Experience: ${updatedUser.experience} years. Roles: ${(updatedUser.preferredRoles || []).join(", ")}.`;
+            if (updatedUser.professionalSummary) {
+                embeddingText += `\nProfessional Summary: ${updatedUser.professionalSummary}`;
+            }
+            const embedding = await AIService.generateEmbedding(embeddingText);
+            
+            if (embedding && embedding.length > 0) {
+                updatedUser.embedding = embedding;
+                await updatedUser.save();
+                
+                // Save to Pinecone
+                await PineconeService.upsertVector(updatedUser._id.toString(), embedding);
+            }
+        } catch (embeddingError) {
+            console.error("Error generating or saving embedding on profile update:", embeddingError);
+        }
+        // ---------------------------------------------------------------
+
+
+
         res.status(200).json({
             message: "Profile completed successfully",
             user: updatedUser,
-            aiSourceUsed: !!extractedText.trim()
+            aiSourceUsed: resumeParts.length > 0
         });
 
     } catch (err: any) {

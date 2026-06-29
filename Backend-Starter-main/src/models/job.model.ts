@@ -12,6 +12,9 @@ export interface IJob extends Document {
     jobType: string;
     description: string;
     peopleIds: string[];
+    preferredCandidates?: string;
+    aiSummary?: string;
+    embedding?: number[];
 }
 
 const JobSchema: Schema = new Schema(
@@ -27,6 +30,9 @@ const JobSchema: Schema = new Schema(
         jobType: { type: String, required: true },
         description: { type: String, required: true },
         peopleIds: { type: [String], default: [] },
+        preferredCandidates: { type: String },
+        aiSummary: { type: String },
+        embedding: { type: [Number], default: [] },
     },
 
     { timestamps: true }
