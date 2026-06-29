@@ -1,3 +1,5 @@
+🏆 Honourable Mention - NVCTI HACKATHON 2026
+
 # Trivalent Job Board
 
 Trivalent is a comprehensive full-stack recruitment platform designed to connect job seekers with employers efficiently. It features AI-powered job recommendations, intelligent resume parsing, and a seamless application process.
