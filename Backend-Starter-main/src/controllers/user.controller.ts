@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import { OAuth2Client } from 'google-auth-library';
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || "856746625056-13v68muq7qtpnp9s5q3ipfd7mkq8vb99.apps.googleusercontent.com");
 import User, { type IUser } from "../models/user.model.js";
 import { LinkExtractionService } from "../services/link-extraction.service.js";
 import { AIService } from "../services/ai.service.js";
@@ -40,6 +42,40 @@ export const loginUser = async (req: Request, res: Response) => {
         res.status(200).json({ message: "Login successful", user, _id: user._id });
     } catch (error: any) {
         res.status(500).json({ message: "Error logging in", error: error.message });
+    }
+};
+
+export const googleAuthUser = async (req: Request, res: Response) => {
+    try {
+        const { token } = req.body;
+        const ticket = await client.verifyIdToken({
+            idToken: token,
+            audience: process.env.GOOGLE_CLIENT_ID || "856746625056-13v68muq7qtpnp9s5q3ipfd7mkq8vb99.apps.googleusercontent.com",
+        });
+        
+        const payload = ticket.getPayload();
+        if (!payload || !payload.email) {
+            return res.status(400).json({ message: "Invalid Google token" });
+        }
+
+        const { email, name } = payload;
+        
+        let user = await User.findOne({ email });
+        
+        if (!user) {
+            // Create user if not exists
+            user = new User({ 
+                name: name || "Google User", 
+                email, 
+                password: Math.random().toString(36).slice(-10), // Random password for google users
+                isProfileComplete: false 
+            });
+            await user.save();
+        }
+
+        res.status(200).json({ message: "Google Login successful", user, _id: user._id });
+    } catch (error: any) {
+        res.status(500).json({ message: "Error with Google Auth", error: error.message });
     }
 };
 

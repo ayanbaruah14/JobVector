@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { LoginApiUser, LoginApiCompany } from "../api/auth";
+import { LoginApiUser, LoginApiCompany, GoogleLoginApiUser, GoogleLoginApiCompany } from "../api/auth";
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -68,6 +69,38 @@ export default function Login() {
       }
     } catch (err) {
       alert(err.response?.data?.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setLoading(true);
+    try {
+      let res;
+      if (form.role === "user") {
+        res = await GoogleLoginApiUser({ token: credentialResponse.credential });
+      } else {
+        res = await GoogleLoginApiCompany({ token: credentialResponse.credential });
+      }
+
+      const userData = form.role === "company" ? res.data.company : res.data.user;
+
+      localStorage.setItem("user", JSON.stringify(userData));
+      localStorage.setItem("userId", res.data._id);
+      localStorage.setItem("role", form.role);
+
+      if (form.role === "company") {
+        navigate("/provider");
+      } else {
+        if (userData.isProfileComplete) {
+          navigate("/jobs");
+        } else {
+          navigate("/create");
+        }
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || "Google Login failed");
     } finally {
       setLoading(false);
     }
@@ -158,6 +191,21 @@ export default function Login() {
                 "Login"
               )}
             </button>
+            <div className="flex items-center justify-center my-4">
+              <div className="w-full h-px bg-slate-800"></div>
+              <span className="px-4 text-sm text-slate-500">or</span>
+              <div className="w-full h-px bg-slate-800"></div>
+            </div>
+            <div className="flex justify-center w-full">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => alert("Google Login Failed")}
+                theme="filled_black"
+                shape="rectangular"
+                size="large"
+                width="100%"
+              />
+            </div>
           </form>
 
           <div className="mt-10 pt-6 border-t border-slate-800 text-center">

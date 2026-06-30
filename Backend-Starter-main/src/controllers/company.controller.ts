@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import { OAuth2Client } from 'google-auth-library';
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || "856746625056-13v68muq7qtpnp9s5q3ipfd7mkq8vb99.apps.googleusercontent.com");
 import Company from "../models/company.model.js";
 import User from "../models/user.model.js";
 import { PineconeService } from "../services/pinecone.service.js";
@@ -44,6 +46,39 @@ export const loginCompany = async (req: Request, res: Response) => {
         res.status(200).json({ message: "Login successful", company, _id: company._id });
     } catch (error: any) {
         res.status(500).json({ message: "Error logging in", error: error.message });
+    }
+};
+
+export const googleAuthCompany = async (req: Request, res: Response) => {
+    try {
+        const { token } = req.body;
+        const ticket = await client.verifyIdToken({
+            idToken: token,
+            audience: process.env.GOOGLE_CLIENT_ID || "856746625056-13v68muq7qtpnp9s5q3ipfd7mkq8vb99.apps.googleusercontent.com",
+        });
+        
+        const payload = ticket.getPayload();
+        if (!payload || !payload.email) {
+            return res.status(400).json({ message: "Invalid Google token" });
+        }
+
+        const { email, name } = payload;
+        
+        let company = await Company.findOne({ email });
+        
+        if (!company) {
+            company = new Company({ 
+                name: name || "Google Company", 
+                email, 
+                password: Math.random().toString(36).slice(-10),
+                jobsIds: []
+            });
+            await company.save();
+        }
+
+        res.status(200).json({ message: "Google Login successful", company, _id: company._id });
+    } catch (error: any) {
+        res.status(500).json({ message: "Error with Google Auth", error: error.message });
     }
 };
 

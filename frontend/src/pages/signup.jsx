@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { SignupApiUser, SignupApiCompany } from "../api/auth";
+import { SignupApiUser, SignupApiCompany, GoogleLoginApiUser, GoogleLoginApiCompany } from "../api/auth";
 import { Link } from "react-router-dom";
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -47,6 +48,29 @@ export default function Signup() {
       navigate(form.role === "company" ? "/provider" : "/create");
     } catch (err) {
       alert(err.response?.data?.message || "Signup failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setLoading(true);
+    try {
+      let res;
+      if (form.role === "user") {
+        res = await GoogleLoginApiUser({ token: credentialResponse.credential });
+      } else {
+        res = await GoogleLoginApiCompany({ token: credentialResponse.credential });
+      }
+
+      const userData = form.role === "company" ? res.data.company : res.data.user;
+      localStorage.setItem("user", JSON.stringify(userData));
+      localStorage.setItem("userId", res.data._id);
+      localStorage.setItem("role", form.role);
+
+      navigate(form.role === "company" ? "/provider" : "/create");
+    } catch (err) {
+      alert(err.response?.data?.message || "Google Signup failed");
     } finally {
       setLoading(false);
     }
@@ -137,6 +161,22 @@ export default function Signup() {
             >
               {loading ? "Creating..." : "Create Account"}
             </button>
+            <div className="flex items-center justify-center my-4">
+              <div className="w-full h-px bg-slate-800"></div>
+              <span className="px-4 text-sm text-slate-500">or</span>
+              <div className="w-full h-px bg-slate-800"></div>
+            </div>
+            <div className="flex justify-center w-full">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => alert("Google Signup Failed")}
+                theme="filled_black"
+                shape="rectangular"
+                size="large"
+                width="100%"
+                text="signup_with"
+              />
+            </div>
           </form>
 
           <p className="mt-8 text-center text-sm text-slate-500">
