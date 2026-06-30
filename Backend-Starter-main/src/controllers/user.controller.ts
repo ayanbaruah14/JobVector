@@ -171,17 +171,16 @@ export const completeUserProfile = async (
                             }
                         });
                         
-                        // Save the file locally
-                        const resumesDir = path.join(__dirname, "../../uploads/resumes");
-                        if (!fs.existsSync(resumesDir)) {
-                            fs.mkdirSync(resumesDir, { recursive: true });
+                        const uploadDir = path.join(__dirname, "../../uploads/resumes");
+                        if (!fs.existsSync(uploadDir)) {
+                            fs.mkdirSync(uploadDir, { recursive: true });
                         }
-                        const uniqueFilename = `${userId}-${Date.now()}.pdf`;
-                        const filePath = path.join(resumesDir, uniqueFilename);
+                        const uniqueFilename = `${Date.now()}-${file.originalname.replace(/\s+/g, "_")}`;
+                        const filePath = path.join(uploadDir, uniqueFilename);
                         fs.writeFileSync(filePath, file.buffer);
                         
-                        // Set the resumeUrl (matching the backend port 5002)
-                        resumeUrl = `http://localhost:5002/uploads/resumes/${uniqueFilename}`;
+                        const serverUrl = process.env.SERVER_URL || "http://localhost:5002";
+                        resumeUrl = `${serverUrl}/uploads/resumes/${uniqueFilename}`;
                         
                     } catch (e: any) {
                         console.error(`Failed to process PDF ${file.originalname}:`, e);
