@@ -134,10 +134,33 @@ export default function RecommendedJobs() {
 
           {/* Content Section */}
           {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {[1, 2, 3].map((n) => (
-                <div key={n} className="h-72 bg-slate-900 animate-pulse rounded-2xl border border-slate-800"></div>
-              ))}
+            <div className="flex flex-col items-center justify-center py-24">
+              <div className="relative w-32 h-32 mb-12 flex items-center justify-center">
+                {/* Spinning Rings */}
+                <div className="absolute inset-0 border-4 border-indigo-500/20 rounded-full animate-[spin_3s_linear_infinite]"></div>
+                <div className="absolute inset-2 border-4 border-emerald-500/30 border-dashed rounded-full animate-[spin_4s_linear_infinite_reverse]"></div>
+                <div className="absolute inset-4 border-2 border-purple-500/20 rounded-full animate-[spin_2s_linear_infinite]"></div>
+                {/* Inner Glow */}
+                <div className="absolute inset-6 bg-indigo-500/20 rounded-full animate-pulse blur-xl"></div>
+                {/* Center Icon */}
+                <div className="relative z-10 text-4xl animate-bounce">🧠</div>
+              </div>
+              
+              <h3 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-emerald-400 mb-4 animate-pulse">
+                Engaging Neural Matchmaker...
+              </h3>
+              
+              <div className="space-y-3 text-center max-w-md">
+                <p className="text-slate-300 font-medium text-lg bg-slate-900/50 py-2 px-4 rounded-lg border border-slate-800">
+                  <span className="inline-block animate-spin mr-2">⚙️</span>
+                  Computing Semantic Similarity Vectors
+                </p>
+                <p className="text-slate-500 text-sm font-mono opacity-75">
+                  &gt; Querying RAG pipeline... <br/>
+                  &gt; Calculating high-dimensional cosine distances... <br/>
+                  &gt; Filtering optimal career trajectories...
+                </p>
+              </div>
             </div>
           ) : jobs.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-fade-in-up animation-delay-200">
