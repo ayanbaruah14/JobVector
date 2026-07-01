@@ -102,8 +102,6 @@ export const searchCandidates = async (req: Request, res: Response) => {
         if (!q || typeof q !== "string") {
             return res.status(400).json({ message: "Search query is required" });
         }
-
-        // 1. Classify the Intent & Generate Multi-Queries
         const intent = await AIService.classifySearchIntent(q);
         const queries = intent.queries && intent.queries.length > 0 ? intent.queries : [q];
 
@@ -112,7 +110,7 @@ export const searchCandidates = async (req: Request, res: Response) => {
 
         // RRF (Reciprocal Rank Fusion) Score Map
         const rrfScores: { [userId: string]: number } = {};
-        const k = 60; // Standard RRF constant
+        const k = 60; 
 
         const addToRRF = (userIds: string[]) => {
             userIds.forEach((id, index) => {
