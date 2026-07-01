@@ -18,17 +18,16 @@ const CompanySchema: Schema = new Schema(
     { timestamps: true }
 );
 
-CompanySchema.pre("save", async function (next) {
-    if (!this.isModified("password")) return next();
+CompanySchema.pre("save", async function (this: ICompany) {
+    if (!this.isModified("password")) return;
     try {
         // Only hash if it's not already a bcrypt hash
-        if (this.password.startsWith('$2b$') || this.password.startsWith('$2a$')) return next();
+        if (this.password.startsWith('$2b$') || this.password.startsWith('$2a$')) return;
         
         const salt = await bcrypt.genSalt(10);
         this.password = await bcrypt.hash(this.password, salt);
-        next();
     } catch (err: any) {
-        return next(err);
+        throw err;
     }
 });
 

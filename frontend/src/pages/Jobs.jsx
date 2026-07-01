@@ -12,7 +12,7 @@ export default function Jobs() {
 
   useEffect(() => {
     setLoading(true);
-    getAllJobs()
+    getAllJobs(userId)
       .then((res) => {
         setJobs(res.data.jobs);
         setLoading(false);
@@ -24,6 +24,7 @@ export default function Jobs() {
     try {
       await applyJob(userId, jobId);
       setPopup({ message: "Applied successfully!", type: "success" });
+      setJobs((prevJobs) => prevJobs.filter((job) => job._id !== jobId));
     } catch (err) {
       setPopup({ message: err.response?.data?.message || "Error applying for job", type: "error" });
     }

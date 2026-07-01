@@ -14,7 +14,7 @@ export class BM25 {
         let totalLength = 0;
 
         for (let i = 0; i < corpus.length; i++) {
-            const tokens = this.tokenize(corpus[i]);
+            const tokens = this.tokenize(corpus[i] || "");
             this.documents.push(tokens);
             this.documentLengths.push(tokens.length);
             totalLength += tokens.length;
@@ -63,14 +63,14 @@ export class BM25 {
             if (idf <= 0) continue; // Skip terms that are too common
 
             for (let i = 0; i < this.totalDocuments; i++) {
-                const docFreq = this.termFrequencies[i].get(queryToken) || 0;
+                const docFreq = this.termFrequencies[i]?.get(queryToken) || 0;
                 if (docFreq === 0) continue;
 
-                const docLength = this.documentLengths[i];
+                const docLength = this.documentLengths[i] || 0;
                 const numerator = docFreq * (this.k1 + 1);
                 const denominator = docFreq + this.k1 * (1 - this.b + this.b * (docLength / this.averageDocumentLength));
                 
-                scores[i] += idf * (numerator / denominator);
+                scores[i] = (scores[i] || 0) + idf * (numerator / denominator);
             }
         }
 

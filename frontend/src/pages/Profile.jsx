@@ -244,7 +244,7 @@ export default function Profile() {
                                 <input type="text" name="preferredJobTypes" value={form.preferredJobTypes} onChange={handleChange} className={inputStyle} placeholder="Full-Time, Contract..." />
                             </div>
                             <div className="md:col-span-2">
-                                <label className={labelStyle}>Expected Salary (USD)</label>
+                                <label className={labelStyle}>Expected Salary (INR)</label>
                                 <input type="number" name="expectedSalary" value={form.expectedSalary} onChange={handleChange} className={inputStyle} />
                             </div>
                         </div>

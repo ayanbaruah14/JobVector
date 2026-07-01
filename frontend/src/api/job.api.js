@@ -1,7 +1,8 @@
 import api from "./axios";
 
 
-export const getAllJobs = () => api.get("/jobs");
+export const getAllJobs = (userId) => 
+  api.get(userId ? `/jobs?userId=${userId}` : "/jobs");
 
 
 export const addJob = (jobData) =>

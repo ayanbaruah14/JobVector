@@ -95,9 +95,17 @@ export const applyJob = async (req: Request, res: Response) => {
             return res.status(400).json({ message: "Already applied to this job" });
         }
 
+        let updatedCachedRecommendations = user.cachedRecommendations || [];
+        updatedCachedRecommendations = updatedCachedRecommendations.filter(
+            (job: any) => job._id.toString() !== jobId.toString()
+        );
+
         await User.findByIdAndUpdate(
             userId,
-            { $addToSet: { appliedJobs: jobId } }
+            { 
+                $addToSet: { appliedJobs: jobId },
+                $set: { cachedRecommendations: updatedCachedRecommendations }
+            }
         );
 
         const job = await Job.findByIdAndUpdate(
@@ -122,7 +130,17 @@ export const applyJob = async (req: Request, res: Response) => {
 
 export const getAllJobs = async (req: Request, res: Response) => {
     try {
-        const jobs = await Job.find({});
+        const userId = req.query.userId as string;
+        let query = {};
+        
+        if (userId) {
+            const user = await User.findById(userId);
+            if (user && user.appliedJobs && user.appliedJobs.length > 0) {
+                query = { _id: { $nin: user.appliedJobs } };
+            }
+        }
+
+        const jobs = await Job.find(query);
         res.status(200).json({ jobs });
     } catch (error: any) {
         res.status(500).json({ message: "Error fetching jobs", error: error.message });
@@ -165,7 +183,7 @@ export const getJobApplicants = async (req: Request, res: Response) => {
         const maxBm25 = Math.max(...bm25Scores, 0.0001);
 
         rankedApplicants = rankedApplicants.map((app, index) => {
-            const keywordScore = bm25Scores[index] / maxBm25;
+            const keywordScore = (bm25Scores[index] || 0) / maxBm25;
             return { ...app, keywordScore };
         });
         

@@ -5,9 +5,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      "/jobs": "http://localhost:5000",
-      "/usr": "http://localhost:5000",
-      "/api": "http://localhost:5000"
+      "/jobs": "http://localhost:5002",
+      "/user": "http://localhost:5002",
+      "/api": "http://localhost:5002",
+      "/company": "http://localhost:5002"
     }
   }
 });

@@ -39,7 +39,7 @@ export const findMatches = async (user: IUser): Promise<IJob[]> => {
     const maxBm25 = Math.max(...bm25Scores, 0.0001); // Avoid division by zero
     
     rankedJobs = rankedJobs.map((job, index) => {
-        const keywordScore = bm25Scores[index] / maxBm25;
+        const keywordScore = (bm25Scores[index] || 0) / maxBm25;
         return { ...job, keywordScore };
     });
 
