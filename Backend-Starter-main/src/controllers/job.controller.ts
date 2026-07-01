@@ -42,6 +42,8 @@ export const addJob = async (req: Request, res: Response) => {
 export const recommendJobs = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        const forceRefresh = req.query.forceRefresh === 'true';
+
         if (!id) {
             return res.status(400).json({ message: "User ID is required" });
         }
@@ -51,7 +53,24 @@ export const recommendJobs = async (req: Request, res: Response) => {
             return res.status(404).json({ message: "User not found" });
         }
 
+        // Cache duration: 24 hours
+        const CACHE_DURATION_MS = 24 * 60 * 60 * 1000;
+        const isCacheValid = user.lastRecommendationsFetch && 
+                             user.cachedRecommendations && 
+                             user.cachedRecommendations.length > 0 &&
+                             (Date.now() - new Date(user.lastRecommendationsFetch).getTime()) < CACHE_DURATION_MS;
+
+        if (!forceRefresh && isCacheValid) {
+            return res.status(200).json({ recommendations: user.cachedRecommendations });
+        }
+
         const recommendations = await findMatches(user);
+        
+        // Cache the new recommendations
+        user.cachedRecommendations = recommendations;
+        user.lastRecommendationsFetch = new Date();
+        await user.save();
+
         res.status(200).json({ recommendations });
     } catch (error: any) {
         res.status(500).json({ message: "Error fetching recommendations", error: error.message });

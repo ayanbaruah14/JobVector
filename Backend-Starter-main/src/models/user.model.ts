@@ -20,6 +20,8 @@ export interface IUser extends Document {
     embedding?: number[];
     resumeUrl?: string;
     professionalSummary?: string;
+    cachedRecommendations?: any[];
+    lastRecommendationsFetch?: Date;
 }
 
 const UserSchema: Schema = new Schema(
@@ -43,6 +45,8 @@ const UserSchema: Schema = new Schema(
         embedding: { type: [Number], default: [] },
         resumeUrl: { type: String },
         professionalSummary: { type: String },
+        cachedRecommendations: { type: [Schema.Types.Mixed], default: [] },
+        lastRecommendationsFetch: { type: Date },
     },
 
     { timestamps: true }
