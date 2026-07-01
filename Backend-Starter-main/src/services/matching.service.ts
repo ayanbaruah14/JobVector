@@ -2,6 +2,7 @@ import Job, { type IJob } from "../models/job.model.js";
 import { type IUser } from "../models/user.model.js";
 import { PineconeService } from "./pinecone.service.js";
 import { AIService } from "./ai.service.js";
+import { BM25 } from "./bm25.service.js";
 
 export const findMatches = async (user: IUser): Promise<IJob[]> => {
     // 1. If user doesn't have an embedding, fallback to basic MongoDB query
@@ -19,18 +20,26 @@ export const findMatches = async (user: IUser): Promise<IJob[]> => {
 
     let rankedJobs: any[] = jobs.map(j => j.toObject());
 
-    // 3. Keyword Search Score
-    const userSkillsLower = (user.skills || []).map((s: string) => s.toLowerCase().trim());
-    rankedJobs = rankedJobs.map(job => {
-        let matchedSkills = 0;
-        const jobSkillsLower = (job.requiredSkills || []).map((s: string) => s.toLowerCase().trim());
-        
-        jobSkillsLower.forEach((reqSkill: string) => {
-            if (userSkillsLower.some((userSkill: string) => userSkill.includes(reqSkill) || reqSkill.includes(userSkill))) {
-                matchedSkills++;
-            }
-        });
-        const keywordScore = jobSkillsLower.length > 0 ? (matchedSkills / jobSkillsLower.length) : 0;
+    // 3. Keyword Search Score (BM25)
+    const corpus = rankedJobs.map(job => {
+        const title = job.title || "";
+        const desc = job.description || "";
+        const skills = (job.requiredSkills || []).join(" ");
+        return `${title} ${desc} ${skills}`;
+    });
+    
+    const bm25 = new BM25(corpus);
+    const userQuery = [
+        ...(user.skills || []),
+        user.professionalSummary || "",
+        ...(user.preferredRoles || [])
+    ].join(" ");
+    
+    const bm25Scores = bm25.search(userQuery);
+    const maxBm25 = Math.max(...bm25Scores, 0.0001); // Avoid division by zero
+    
+    rankedJobs = rankedJobs.map((job, index) => {
+        const keywordScore = bm25Scores[index] / maxBm25;
         return { ...job, keywordScore };
     });
 

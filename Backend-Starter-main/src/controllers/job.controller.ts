@@ -5,6 +5,7 @@ import { findMatches } from "../services/matching.service.js";
 import mongoose from "mongoose";
 import { AIService } from "../services/ai.service.js";
 import { PineconeService } from "../services/pinecone.service.js";
+import { BM25 } from "../services/bm25.service.js";
 
 export const addJob = async (req: Request, res: Response) => {
     try {
@@ -145,17 +146,26 @@ export const getJobApplicants = async (req: Request, res: Response) => {
         // Calculate Vector Rank if job embedding exists
         let rankedApplicants: any[] = applicants.map(a => a.toObject());
         
-        // 1. Calculate Keyword Search Score & Rank
-        const jobSkillsLower = (job.requiredSkills || []).map((s: string) => s.toLowerCase().trim());
-        rankedApplicants = rankedApplicants.map(app => {
-            let matchedSkills = 0;
-            const appSkillsLower = (app.skills || []).map((s: string) => s.toLowerCase().trim());
-            jobSkillsLower.forEach((reqSkill: string) => {
-                if (appSkillsLower.some((appSkill: string) => appSkill.includes(reqSkill) || reqSkill.includes(appSkill))) {
-                    matchedSkills++;
-                }
-            });
-            const keywordScore = jobSkillsLower.length > 0 ? (matchedSkills / jobSkillsLower.length) : 0;
+        // 1. Calculate Keyword Search Score & Rank (BM25)
+        const corpus = rankedApplicants.map(app => {
+            const skills = (app.skills || []).join(" ");
+            const summary = app.professionalSummary || "";
+            const roles = (app.preferredRoles || []).join(" ");
+            return `${skills} ${summary} ${roles}`;
+        });
+        
+        const bm25 = new BM25(corpus);
+        const jobQuery = [
+            job.title || "",
+            job.description || "",
+            ...(job.requiredSkills || [])
+        ].join(" ");
+
+        const bm25Scores = bm25.search(jobQuery);
+        const maxBm25 = Math.max(...bm25Scores, 0.0001);
+
+        rankedApplicants = rankedApplicants.map((app, index) => {
+            const keywordScore = bm25Scores[index] / maxBm25;
             return { ...app, keywordScore };
         });
         

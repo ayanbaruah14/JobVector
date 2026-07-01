@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import bcrypt from "bcrypt";
 
 export interface ICompany extends Document {
     name: string;
@@ -16,5 +17,19 @@ const CompanySchema: Schema = new Schema(
     },
     { timestamps: true }
 );
+
+CompanySchema.pre("save", async function (next) {
+    if (!this.isModified("password")) return next();
+    try {
+        // Only hash if it's not already a bcrypt hash
+        if (this.password.startsWith('$2b$') || this.password.startsWith('$2a$')) return next();
+        
+        const salt = await bcrypt.genSalt(10);
+        this.password = await bcrypt.hash(this.password, salt);
+        next();
+    } catch (err: any) {
+        return next(err);
+    }
+});
 
 export default mongoose.model<ICompany>("Company", CompanySchema);

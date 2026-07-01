@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import bcrypt from "bcrypt";
 import { OAuth2Client } from 'google-auth-library';
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || "856746625056-13v68muq7qtpnp9s5q3ipfd7mkq8vb99.apps.googleusercontent.com");
 import Company from "../models/company.model.js";
@@ -39,7 +40,20 @@ export const loginCompany = async (req: Request, res: Response) => {
             return res.status(404).json({ message: "Company not found" });
         }
 
-        if (company.password !== password) {
+        let isMatch = false;
+        if (company.password.startsWith('$2b$') || company.password.startsWith('$2a$')) {
+            isMatch = await bcrypt.compare(password, company.password);
+        } else {
+            // Legacy plain text check
+            isMatch = company.password === password;
+            if (isMatch) {
+                // Trigger the pre('save') hook to hash the plaintext password
+                company.password = password;
+                await company.save();
+            }
+        }
+
+        if (!isMatch) {
             return res.status(400).json({ message: "Invalid credentials" });
         }
 
